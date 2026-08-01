@@ -262,9 +262,14 @@ export default function ResetPasswordPage() {
           )}
         </div>
 
-        <div className="flex items-center justify-center gap-2 text-xs text-[var(--text-main)] opacity-70 font-semibold">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          <span>Protected with Supabase Auth Security</span>
+        <div className="flex flex-col items-center gap-2 text-xs text-[var(--text-main)] opacity-70 font-semibold">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            <span>Protected with Supabase Auth Security</span>
+          </div>
+          <p className="text-[11px] opacity-60 font-medium mt-1">
+            © {new Date().getFullYear()} TaskFlow. All rights reserved.
+          </p>
         </div>
       </div>
     </div>

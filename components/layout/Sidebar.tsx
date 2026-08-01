@@ -411,6 +411,13 @@ export function Sidebar() {
               <span>Sign In</span>
             </Link>
           )}
+
+          {/* Copyright Notice */}
+          <div className="pt-2 text-center">
+            <p className="text-[10px] font-semibold tracking-wide text-[var(--text-main)] opacity-50">
+              © {new Date().getFullYear()} TaskFlow. All rights reserved.
+            </p>
+          </div>
         </div>
       </aside>
 

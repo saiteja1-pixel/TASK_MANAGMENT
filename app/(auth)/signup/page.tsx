@@ -273,6 +273,12 @@ export default function SignupPage() {
             </p>
           </div>
         </div>
+
+        <div className="text-center">
+          <p className="text-[11px] text-[var(--text-main)] opacity-60 font-medium">
+            © {new Date().getFullYear()} TaskFlow. All rights reserved.
+          </p>
+        </div>
       </div>
     </div>
   );
