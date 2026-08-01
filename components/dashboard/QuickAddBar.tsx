@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { TaskPriority, TaskCreateInput } from '@/lib/types/database';
-import { Plus, Calendar, Tag, AlertCircle, ChevronDown, ChevronUp, CornerDownLeft } from 'lucide-react';
+import { Plus, Calendar, Tag, AlertCircle, ChevronDown, ChevronUp, CornerDownLeft, X } from 'lucide-react';
 import { getPriorityColor } from '@/lib/utils';
 
 interface QuickAddBarProps {
@@ -18,31 +18,59 @@ export function QuickAddBar({ onAddTask }: QuickAddBarProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle || loading) return;
 
     setError(null);
     setLoading(true);
 
-    const success = await onAddTask({
-      title: title.trim(),
-      priority,
-      category: category.trim() || null,
-      due_date: dueDate || null,
-      status: 'todo',
-    });
+    try {
+      console.log('[QuickAddBar] Submitting new task payload:', {
+        title: trimmedTitle,
+        priority,
+        category: category.trim() || null,
+        due_date: dueDate || null,
+        status: 'todo',
+      });
 
-    setLoading(false);
+      const success = await onAddTask({
+        title: trimmedTitle,
+        priority,
+        category: category.trim() || null,
+        due_date: dueDate || null,
+        status: 'todo',
+      });
 
-    if (success) {
-      setTitle('');
-      setCategory('');
-      setDueDate('');
-      setPriority('medium');
-      setShowOptions(false);
-    } else {
-      setError('Failed to create task. Please try again.');
+      if (success) {
+        console.log('[QuickAddBar] Task created successfully. Resetting input form.');
+        setTitle('');
+        setCategory('');
+        setDueDate('');
+        setPriority('medium');
+        setShowOptions(false);
+      } else {
+        console.error('[QuickAddBar] Task creation returned false.');
+        setError('Failed to create task. Please check your connection or auth state.');
+      }
+    } catch (err: any) {
+      console.error('[QuickAddBar] Unexpected error during submit:', err);
+      setError(err?.message || 'An unexpected error occurred while creating the task.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (title.trim() && !loading) {
+        handleSubmit(e);
+      }
     }
   };
 
@@ -50,58 +78,64 @@ export function QuickAddBar({ onAddTask }: QuickAddBarProps) {
     <div className="mb-8">
       <form
         onSubmit={handleSubmit}
-        className="bg-white dark:bg-slate-900/90 rounded-2xl shadow-md shadow-slate-200/50 dark:shadow-none border border-slate-200/80 dark:border-slate-800/80 p-4 transition-all duration-200 focus-within:border-indigo-500/80 focus-within:ring-2 focus-within:ring-indigo-500/20"
+        className="bg-[var(--bg-base)] neu-inset rounded-2xl p-4 sm:p-5 transition-all duration-200"
       >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 shadow-xs">
-            <Plus className="w-5 h-5 stroke-[2.5]" />
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-[200px]">
+            <div className="w-10 h-10 rounded-2xl neu-raised-sm text-[#7C3AED] dark:text-[#8B5CF6] flex items-center justify-center shrink-0">
+              <Plus className="w-5 h-5 stroke-[2.5]" />
+            </div>
+
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Add a new task title..."
+              disabled={loading}
+              className="w-full min-w-0 bg-transparent text-[var(--text-main)] placeholder-[var(--text-main)]/50 font-semibold text-sm sm:text-base focus:outline-none"
+            />
           </div>
 
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Add a new task title... (press Enter ↵)"
-            disabled={loading}
-            className="flex-1 bg-transparent text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 font-medium focus:outline-none text-base"
-          />
-
-          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold text-slate-400">
+          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl neu-raised-sm text-[10px] font-mono font-bold text-[var(--text-main)] opacity-70">
             <CornerDownLeft className="w-3 h-3" />
             <span>ENTER</span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowOptions(!showOptions)}
-            className="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1 text-xs font-bold"
-          >
-            <span>Options</span>
-            {showOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-2.5 shrink-0 ml-auto sm:ml-0">
+            <button
+              type="button"
+              onClick={() => setShowOptions(!showOptions)}
+              className="px-3.5 py-2.5 min-h-[44px] text-[var(--text-main)] rounded-2xl neu-button neu-focus flex items-center gap-1 text-xs font-bold"
+            >
+              <span>Options</span>
+              {showOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
 
-          <button
-            type="submit"
-            disabled={loading || !title.trim()}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm shadow-md shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-          >
-            {loading ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            ) : (
-              <span>Add Task</span>
-            )}
-          </button>
+            <button
+              type="submit"
+              onClick={handleSubmit}
+              disabled={loading || !title.trim()}
+              className="px-5 py-2.5 min-h-[44px] rounded-2xl neu-button-primary neu-focus font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <span>Add Task</span>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Expandable Options Drawer */}
         {showOptions && (
-          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-in">
+          <div className="mt-5 pt-5 border-t border-[var(--shadow-dark)]/20 grid grid-cols-1 sm:grid-cols-3 gap-5 animate-fade-in">
             {/* Priority Selector */}
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-main)] opacity-70 mb-2">
                 Priority Level
               </label>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 {(['low', 'medium', 'high'] as TaskPriority[]).map((p) => {
                   const colors = getPriorityColor(p);
                   const isSelected = priority === p;
@@ -110,10 +144,10 @@ export function QuickAddBar({ onAddTask }: QuickAddBarProps) {
                       key={p}
                       type="button"
                       onClick={() => setPriority(p)}
-                      className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold capitalize border transition-all ${
+                      className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold capitalize transition-all neu-focus ${
                         isSelected
-                          ? `${colors.badge} ring-2 ring-indigo-500/30`
-                          : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          ? `${colors.badge} neu-inset-sm font-extrabold`
+                          : 'neu-button text-[var(--text-main)]'
                       }`}
                     >
                       {p}
@@ -125,43 +159,55 @@ export function QuickAddBar({ onAddTask }: QuickAddBarProps) {
 
             {/* Category Input */}
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-main)] opacity-70 mb-2">
                 Category / Tag
               </label>
               <div className="relative">
-                <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Tag className="w-4 h-4 text-[var(--text-main)] opacity-50 absolute left-3.5 top-3" />
                 <input
                   type="text"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   placeholder="e.g. Work, Personal"
-                  className="w-full pl-9 pr-3 py-2 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-10 pr-3.5 py-2.5 text-xs font-semibold rounded-2xl bg-[var(--bg-base)] neu-inset-sm text-[var(--text-main)] placeholder-[var(--text-main)]/50 focus:outline-none neu-focus"
                 />
               </div>
             </div>
 
             {/* Due Date Input */}
             <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-main)] opacity-70 mb-2">
                 Due Date
               </label>
               <div className="relative">
-                <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Calendar className="w-4 h-4 text-[var(--text-main)] opacity-50 absolute left-3.5 top-3" />
                 <input
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  onKeyDown={handleKeyDown}
+                  className="w-full pl-10 pr-3.5 py-2.5 text-xs font-semibold rounded-2xl bg-[var(--bg-base)] neu-inset-sm text-[var(--text-main)] focus:outline-none neu-focus"
                 />
               </div>
             </div>
           </div>
         )}
 
+        {/* User-facing error message alert */}
         {error && (
-          <div className="mt-3 text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5 font-medium">
-            <AlertCircle className="w-3.5 h-3.5" />
-            <span>{error}</span>
+          <div className="mt-4 p-3.5 rounded-2xl neu-inset-sm text-xs text-red-600 dark:text-red-400 flex items-center justify-between gap-2 font-bold animate-fade-in">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+              <span>{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/50"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
       </form>

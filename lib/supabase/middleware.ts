@@ -40,14 +40,16 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  const protectedPaths = ['/dashboard', '/analytics', '/settings'];
+  // /dashboard, /analytics, /calendar are public preview-only, while /settings remains auth-protected
+  const protectedPaths = ['/settings'];
   const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path));
-  const isAuthPath = pathname === '/login' || pathname === '/signup';
+  const isAuthPath = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password';
 
   if (!user && isProtectedPath) {
-    // Redirect unauthenticated user to /login
+    // Redirect unauthenticated user to /login with redirect query param
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    url.searchParams.set('redirect', pathname);
     return NextResponse.redirect(url);
   }
 
@@ -59,8 +61,9 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (pathname === '/') {
+    // Redirect root to /dashboard (public preview available)
     const url = request.nextUrl.clone();
-    url.pathname = user ? '/dashboard' : '/login';
+    url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
 

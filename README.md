@@ -14,7 +14,7 @@ Tasks in TaskFlow are **NOT** reset daily. A task added today remains visible on
 
 - 🔐 **Authentication**: Supabase email/password login and signup with protected routes.
 - ⚡ **Quick-Add Bar**: Instant task creation with title input (default priority `medium`, status `todo`).
-- 📋 **Today's Active Tasks**: Shows all active tasks (`status != 'done'`), sorted by priority (`high` $\rightarrow$ `medium` $\rightarrow$ `low`) and due date.
+- 📋 **My Active Tasks**: Shows all active tasks (`status != 'done'`), sorted by priority (`high` $\rightarrow$ `medium` $\rightarrow$ `low`) and due date.
 - 🚨 **Overdue Task Warnings**: Overdue tasks (`due_date < today` and `status != 'done'`) highlighted with warning badges at top.
 - ✏️ **Full Task CRUD**: Interactive check-to-complete, edit modal (title, description, status, priority, category, due date), and delete.
 - 📊 **Dashboard Stats**: Real-time counter of tasks completed today, pending tasks, and overdue items.

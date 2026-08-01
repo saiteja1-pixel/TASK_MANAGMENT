@@ -1,4 +1,4 @@
-import { Task } from './types/database';
+import { Task, TaskCompletion } from './types/database';
 
 export interface AnalyticsStats {
   totalCreated: number;
@@ -41,18 +41,17 @@ export function formatDateToYYYYMMDD(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function calculateAnalyticsStats(tasks: Task[]): AnalyticsStats {
-  const totalCreated = tasks.length;
-  const completedTasks = tasks.filter((t) => t.status === 'done');
-  const totalCompleted = completedTasks.length;
-  const completionRate = totalCreated > 0 ? Math.round((totalCompleted / totalCreated) * 100) : 0;
+export function calculateAnalyticsStats(tasks: Task[], completions: TaskCompletion[] = []): AnalyticsStats {
+  const activeTasks = tasks.filter((t) => t.is_active !== false);
+  const totalCreated = activeTasks.length;
+  const totalCompleted = completions.length;
+  const completionRate = totalCreated > 0 ? Math.round((totalCompleted / (totalCreated + totalCompleted)) * 100) : 0;
 
-  // Streak calculation based on completed_at dates
+  // Streak calculation based on task_completions completed_date
   const completedDatesSet = new Set<string>();
-  completedTasks.forEach((t) => {
-    if (t.completed_at) {
-      const datePart = new Date(t.completed_at).toISOString().split('T')[0];
-      completedDatesSet.add(datePart);
+  completions.forEach((c) => {
+    if (c.completed_date) {
+      completedDatesSet.add(c.completed_date);
     }
   });
 
@@ -65,7 +64,6 @@ export function calculateAnalyticsStats(tasks: Task[]): AnalyticsStats {
   let currentStreak = 0;
   let checkDate = new Date();
 
-  // If today has completion, start counting from today. Otherwise, check if yesterday had completion.
   if (completedDatesSet.has(todayStr)) {
     checkDate = today;
   } else if (completedDatesSet.has(yesterdayStr)) {
@@ -92,7 +90,7 @@ export function calculateAnalyticsStats(tasks: Task[]): AnalyticsStats {
   };
 }
 
-export function get14DaysActivity(tasks: Task[]): DayActivityData[] {
+export function get14DaysActivity(tasks: Task[], completions: TaskCompletion[] = []): DayActivityData[] {
   const result: DayActivityData[] = [];
   const today = new Date();
 
@@ -102,12 +100,14 @@ export function get14DaysActivity(tasks: Task[]): DayActivityData[] {
 
   tasks.forEach((t) => {
     if (t.created_at) {
-      const dStr = new Date(t.created_at).toISOString().split('T')[0];
+      const dStr = formatDateToYYYYMMDD(new Date(t.created_at));
       createdMap.set(dStr, (createdMap.get(dStr) || 0) + 1);
     }
-    if (t.status === 'done' && t.completed_at) {
-      const dStr = new Date(t.completed_at).toISOString().split('T')[0];
-      completedMap.set(dStr, (completedMap.get(dStr) || 0) + 1);
+  });
+
+  completions.forEach((c) => {
+    if (c.completed_date) {
+      completedMap.set(c.completed_date, (completedMap.get(c.completed_date) || 0) + 1);
     }
   });
 
@@ -129,10 +129,11 @@ export function get14DaysActivity(tasks: Task[]): DayActivityData[] {
 }
 
 export function getCategoryBreakdown(tasks: Task[]): CategoryData[] {
+  const activeTasks = tasks.filter((t) => t.is_active !== false);
   const categoryCounts = new Map<string, number>();
-  let total = tasks.length;
+  const total = activeTasks.length;
 
-  tasks.forEach((t) => {
+  activeTasks.forEach((t) => {
     const cat = t.category && t.category.trim() !== '' ? t.category.trim() : 'Uncategorized';
     categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1);
   });
@@ -143,14 +144,14 @@ export function getCategoryBreakdown(tasks: Task[]): CategoryData[] {
     result.push({ name, count, percentage });
   });
 
-  // Sort highest count first
   return result.sort((a, b) => b.count - a.count);
 }
 
 export function getPriorityDistribution(tasks: Task[]): PriorityData[] {
+  const activeTasks = tasks.filter((t) => t.is_active !== false);
   const counts = { high: 0, medium: 0, low: 0 };
 
-  tasks.forEach((t) => {
+  activeTasks.forEach((t) => {
     if (t.priority in counts) {
       counts[t.priority as keyof typeof counts]++;
     }
@@ -163,19 +164,18 @@ export function getPriorityDistribution(tasks: Task[]): PriorityData[] {
   ];
 }
 
-export function get90DaysHeatmap(tasks: Task[]): HeatmapDay[] {
+export function get90DaysHeatmap(tasks: Task[], completions: TaskCompletion[] = []): HeatmapDay[] {
   const completedMap = new Map<string, number>();
-  tasks.forEach((t) => {
-    if (t.status === 'done' && t.completed_at) {
-      const dStr = new Date(t.completed_at).toISOString().split('T')[0];
-      completedMap.set(dStr, (completedMap.get(dStr) || 0) + 1);
+
+  completions.forEach((c) => {
+    if (c.completed_date) {
+      completedMap.set(c.completed_date, (completedMap.get(c.completed_date) || 0) + 1);
     }
   });
 
   const result: HeatmapDay[] = [];
   const today = new Date();
 
-  // Generate 90 days backwards
   for (let i = 89; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);

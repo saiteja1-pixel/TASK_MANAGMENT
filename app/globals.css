@@ -3,25 +3,108 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --bg-base: #E0E5EC;
+  --shadow-light: #FFFFFF;
+  --shadow-dark: #A3B1C6;
+  --text-main: #2D3748;
+  --accent-purple: #7C3AED;
+  --accent-purple-hover: #6D28D9;
+  --background: var(--bg-base);
+  --foreground: var(--text-main);
 }
 
 .dark {
-  --background: #090d16;
-  --foreground: #f8fafc;
+  --bg-base: #2D3142;
+  --shadow-light: #363B52;
+  --shadow-dark: #24273A;
+  --text-main: #E8E8E8;
+  --accent-purple: #8B5CF6;
+  --accent-purple-hover: #7C3AED;
+  --background: var(--bg-base);
+  --foreground: var(--text-main);
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
+  background-color: var(--bg-base);
+  color: var(--text-main);
   min-height: 100vh;
   font-family: var(--font-plus-jakarta), system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: background-color 0.25s ease, color 0.25s ease;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Accessibility & Interaction feedback rules (UI/UX Pro Max) */
+/* Neumorphic Utility Classes */
+.neu-raised {
+  background-color: var(--bg-base);
+  box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+}
+
+.neu-raised-sm {
+  background-color: var(--bg-base);
+  box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
+}
+
+.neu-raised-lg {
+  background-color: var(--bg-base);
+  box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
+}
+
+.neu-inset {
+  background-color: var(--bg-base);
+  box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light);
+}
+
+.neu-inset-sm {
+  background-color: var(--bg-base);
+  box-shadow: inset 2px 2px 5px var(--shadow-dark), inset -2px -2px 5px var(--shadow-light);
+}
+
+/* Neumorphic Interactive Buttons */
+.neu-button {
+  background-color: var(--bg-base);
+  color: var(--text-main);
+  box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neu-button:hover:not(:disabled) {
+  box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
+  transform: translateY(1px);
+}
+
+.neu-button:active:not(:disabled) {
+  box-shadow: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);
+  transform: translateY(2px);
+}
+
+.neu-button-primary {
+  background-color: var(--accent-purple);
+  color: #ffffff;
+  box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.neu-button-primary:hover:not(:disabled) {
+  background-color: var(--accent-purple-hover);
+  box-shadow: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
+  transform: translateY(1px);
+}
+
+.neu-button-primary:active:not(:disabled) {
+  box-shadow: inset 3px 3px 6px rgba(0, 0, 0, 0.35);
+  transform: translateY(2px);
+}
+
+/* Universal Accessibility Focus Outline */
+.neu-focus {
+  outline: none;
+}
+.neu-focus:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--accent-purple) !important;
+}
+
+/* Accessibility & Interaction feedback rules */
 button, a, input[type="checkbox"], input[type="radio"], select {
   cursor: pointer;
 }
@@ -39,11 +122,11 @@ button:disabled, input:disabled, select:disabled {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.4);
+  background: var(--shadow-dark);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.7);
+  background: var(--accent-purple);
 }
 
 /* Keyframe Animations */

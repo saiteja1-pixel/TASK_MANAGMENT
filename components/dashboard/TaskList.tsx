@@ -1,19 +1,33 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Task, TaskPriority } from '@/lib/types/database';
+import Link from 'next/link';
+import { Task, TaskPriority, TaskDailyNote } from '@/lib/types/database';
 import { TaskItem } from './TaskItem';
 import { isOverdue } from '@/lib/utils';
-import { Search, Filter, AlertTriangle, CheckSquare2, CalendarDays } from 'lucide-react';
+import { Search, AlertTriangle, CheckSquare2, CalendarDays, LogIn } from 'lucide-react';
 
 interface TaskListProps {
   tasks: Task[];
+  completedTaskIdsToday?: Set<string>;
+  dailyNotesMap?: Map<string, TaskDailyNote>;
+  isAuthenticated?: boolean;
   onToggleComplete: (task: Task) => Promise<void>;
+  onOpenReasonModal?: (task: Task, mode: 'note' | 'skip') => void;
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => Promise<void>;
 }
 
-export function TaskList({ tasks, onToggleComplete, onEdit, onDelete }: TaskListProps) {
+export function TaskList({
+  tasks,
+  completedTaskIdsToday,
+  dailyNotesMap,
+  isAuthenticated = true,
+  onToggleComplete,
+  onOpenReasonModal,
+  onEdit,
+  onDelete,
+}: TaskListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
@@ -34,9 +48,9 @@ export function TaskList({ tasks, onToggleComplete, onEdit, onDelete }: TaskList
     low: 1,
   };
 
-  // Filter tasks (Active tasks only: status != 'done')
+  // Filter tasks (Active tasks only: is_active !== false)
   const activeTasks = useMemo(() => {
-    return tasks.filter((task) => task.status !== 'done');
+    return tasks.filter((task) => task.is_active !== false);
   }, [tasks]);
 
   // Apply search, category, and priority filters
@@ -92,27 +106,27 @@ export function TaskList({ tasks, onToggleComplete, onEdit, onDelete }: TaskList
   return (
     <div className="space-y-6">
       {/* Search and Filters Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-sm">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[var(--bg-base)] neu-raised p-4 rounded-2xl">
         {/* Search Input */}
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+          <Search className="w-4 h-4 text-[var(--text-main)] opacity-50 absolute left-3.5 top-3" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search tasks by title, description, category..."
-            className="w-full pl-10 pr-4 py-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-2xl bg-[var(--bg-base)] neu-inset-sm text-[var(--text-main)] placeholder-[var(--text-main)]/50 focus:outline-none neu-focus font-semibold"
           />
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
           {/* Category Filter */}
           {categories.length > 0 && (
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex-1 sm:flex-initial px-3.5 py-2.5 min-h-[44px] text-xs font-bold rounded-2xl bg-[var(--bg-base)] neu-inset-sm text-[var(--text-main)] focus:outline-none neu-focus"
             >
               <option value="all">All Categories</option>
               {categories.map((cat) => (
@@ -127,7 +141,7 @@ export function TaskList({ tasks, onToggleComplete, onEdit, onDelete }: TaskList
           <select
             value={selectedPriority}
             onChange={(e) => setSelectedPriority(e.target.value)}
-            className="px-3 py-2 text-xs font-medium rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 sm:flex-initial px-3.5 py-2.5 min-h-[44px] text-xs font-bold rounded-2xl bg-[var(--bg-base)] neu-inset-sm text-[var(--text-main)] focus:outline-none neu-focus"
           >
             <option value="all">All Priorities</option>
             <option value="high">High Priority</option>
@@ -146,12 +160,15 @@ export function TaskList({ tasks, onToggleComplete, onEdit, onDelete }: TaskList
               Overdue Tasks ({overdueTasks.length})
             </h2>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {overdueTasks.map((task) => (
               <TaskItem
                 key={task.id}
                 task={task}
+                isCompletedToday={completedTaskIdsToday ? completedTaskIdsToday.has(task.id) : task.status === 'done'}
+                dailyNote={dailyNotesMap ? dailyNotesMap.get(task.id) : null}
                 onToggleComplete={onToggleComplete}
+                onOpenReasonModal={onOpenReasonModal}
                 onEdit={onEdit}
                 onDelete={onDelete}
               />
@@ -163,40 +180,66 @@ export function TaskList({ tasks, onToggleComplete, onEdit, onDelete }: TaskList
       {/* REGULAR / TODAY'S TASKS SECTION */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-            <CalendarDays className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <div className="flex items-center gap-2 text-[var(--text-main)]">
+            <CalendarDays className="w-5 h-5 text-[#7C3AED] dark:text-[#8B5CF6]" />
             <h2 className="text-base font-bold tracking-tight">
-              Today&apos;s Active Tasks ({regularTasks.length})
+              My Active Tasks ({regularTasks.length})
             </h2>
           </div>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-[var(--text-main)] opacity-70 font-semibold">
             Sorted by priority & due date
           </span>
         </div>
 
         {regularTasks.length === 0 && overdueTasks.length === 0 ? (
-          <div className="text-center py-12 px-4 rounded-2xl bg-white dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-500 flex items-center justify-center mx-auto mb-3">
+          <div className="text-center py-12 px-4 rounded-2xl bg-[var(--bg-base)] neu-raised space-y-3">
+            <div className="w-12 h-12 rounded-2xl neu-inset-sm text-[#7C3AED] dark:text-[#8B5CF6] flex items-center justify-center mx-auto">
               <CheckSquare2 className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">
-              {searchTerm || selectedCategory !== 'all' || selectedPriority !== 'all'
-                ? 'No matching tasks found'
-                : 'All caught up! 🎉'}
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-              {searchTerm || selectedCategory !== 'all' || selectedPriority !== 'all'
-                ? 'Try clearing your search filters to see all active tasks.'
-                : 'No pending tasks on your dashboard. Use the quick-add bar above to add a new task.'}
-            </p>
+
+            {!isAuthenticated ? (
+              <div className="space-y-3">
+                <h3 className="text-lg font-extrabold text-[var(--text-main)]">
+                  Sign in to start tracking your tasks
+                </h3>
+                <p className="text-xs text-[var(--text-main)] opacity-70 max-w-sm mx-auto font-medium">
+                  Welcome to TaskFlow! Sign in to create, organize, and track your daily task history seamlessly across all devices.
+                </p>
+                <div className="pt-2">
+                  <Link
+                    href="/login?redirect=/dashboard"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-extrabold neu-button-primary neu-focus text-white"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    <span>Sign In to TaskFlow</span>
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <h3 className="text-base font-extrabold text-[var(--text-main)] mb-1">
+                  {searchTerm || selectedCategory !== 'all' || selectedPriority !== 'all'
+                    ? 'No matching tasks found'
+                    : 'All caught up! 🎉'}
+                </h3>
+                <p className="text-xs text-[var(--text-main)] opacity-70 max-w-sm mx-auto font-medium">
+                  {searchTerm || selectedCategory !== 'all' || selectedPriority !== 'all'
+                    ? 'Try clearing your search filters to see all active tasks.'
+                    : 'No pending tasks on your dashboard. Use the quick-add bar above to add a new task.'}
+                </p>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {regularTasks.map((task) => (
               <TaskItem
                 key={task.id}
                 task={task}
+                isCompletedToday={completedTaskIdsToday ? completedTaskIdsToday.has(task.id) : task.status === 'done'}
+                dailyNote={dailyNotesMap ? dailyNotesMap.get(task.id) : null}
                 onToggleComplete={onToggleComplete}
+                onOpenReasonModal={onOpenReasonModal}
                 onEdit={onEdit}
                 onDelete={onDelete}
               />

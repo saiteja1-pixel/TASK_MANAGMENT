@@ -29,7 +29,7 @@ interface AnalyticsChartsProps {
   priorityData: PriorityData[];
 }
 
-// Distinct purple/indigo palette for categories
+// Distinct purple/indigo palette for categories with high contrast & full saturation
 const CATEGORY_COLORS = [
   '#6366F1', // Indigo
   '#8B5CF6', // Purple
@@ -49,22 +49,22 @@ export function AnalyticsCharts({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
-  const chartTextColor = isDark ? '#94A3B8' : '#64748B';
-  const gridColor = isDark ? '#1E293B' : '#F1F5F9';
-  const tooltipBg = isDark ? '#0F172A' : '#FFFFFF';
-  const tooltipBorder = isDark ? '#334155' : '#E2E8F0';
+  const chartTextColor = isDark ? '#E8E8E8' : '#2D3748';
+  const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)';
+  const tooltipBg = isDark ? '#2D3142' : '#E0E5EC';
+  const tooltipBorder = isDark ? '#363B52' : '#A3B1C6';
 
   return (
     <div className="space-y-6">
       {/* 2-Column Grid: Completion Trend Line Chart | Created vs Completed Bar Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Completion Trend Line Chart */}
-        <div className="bg-white dark:bg-slate-900/90 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+        <div className="bg-[var(--bg-base)] neu-raised p-6 rounded-3xl">
           <div className="mb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            <h2 className="text-base font-extrabold text-[var(--text-main)]">
               14-Day Completion Trend
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-[var(--text-main)] opacity-70 font-medium">
               Tasks completed per day over the last two weeks
             </p>
           </div>
@@ -91,10 +91,12 @@ export function AnalyticsCharts({
                   contentStyle={{
                     backgroundColor: tooltipBg,
                     borderColor: tooltipBorder,
-                    borderRadius: '12px',
+                    borderRadius: '16px',
                     fontSize: '12px',
-                    color: isDark ? '#F8FAFC' : '#0F172A',
-                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                    color: isDark ? '#E8E8E8' : '#2D3748',
+                    boxShadow: isDark
+                      ? '4px 4px 10px #24273A, -4px -4px 10px #363B52'
+                      : '4px 4px 10px #A3B1C6, -4px -4px 10px #FFFFFF',
                   }}
                   formatter={(value: any) => [`${value} tasks completed`, 'Completed']}
                 />
@@ -102,10 +104,10 @@ export function AnalyticsCharts({
                   type="monotone"
                   dataKey="completed"
                   name="Completed Tasks"
-                  stroke="#6366F1"
-                  strokeWidth={3}
-                  dot={{ r: 4, fill: '#6366F1', strokeWidth: 2, stroke: '#FFFFFF' }}
-                  activeDot={{ r: 6, fill: '#4F46E5' }}
+                  stroke="#7C3AED"
+                  strokeWidth={3.5}
+                  dot={{ r: 5, fill: '#7C3AED', strokeWidth: 2, stroke: '#FFFFFF' }}
+                  activeDot={{ r: 7, fill: '#6D28D9' }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -113,12 +115,12 @@ export function AnalyticsCharts({
         </div>
 
         {/* Tasks Created vs Completed Bar Chart */}
-        <div className="bg-white dark:bg-slate-900/90 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+        <div className="bg-[var(--bg-base)] neu-raised p-6 rounded-3xl">
           <div className="mb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            <h2 className="text-base font-extrabold text-[var(--text-main)]">
               Tasks Created vs Completed
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-[var(--text-main)] opacity-70 font-medium">
               Comparison of task creation & resolution rate over 14 days
             </p>
           </div>
@@ -145,10 +147,12 @@ export function AnalyticsCharts({
                   contentStyle={{
                     backgroundColor: tooltipBg,
                     borderColor: tooltipBorder,
-                    borderRadius: '12px',
+                    borderRadius: '16px',
                     fontSize: '12px',
-                    color: isDark ? '#F8FAFC' : '#0F172A',
-                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                    color: isDark ? '#E8E8E8' : '#2D3748',
+                    boxShadow: isDark
+                      ? '4px 4px 10px #24273A, -4px -4px 10px #363B52'
+                      : '4px 4px 10px #A3B1C6, -4px -4px 10px #FFFFFF',
                   }}
                 />
                 <Legend
@@ -156,8 +160,8 @@ export function AnalyticsCharts({
                   align="right"
                   wrapperStyle={{ fontSize: '11px', paddingBottom: '10px' }}
                 />
-                <Bar dataKey="created" name="Created" fill="#818CF8" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="completed" name="Completed" fill="#10B981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="created" name="Created" fill="#818CF8" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="completed" name="Completed" fill="#10B981" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -167,19 +171,19 @@ export function AnalyticsCharts({
       {/* 2-Column Grid: Category Breakdown Pie Chart | Priority Distribution Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Category Breakdown Pie Chart */}
-        <div className="bg-white dark:bg-slate-900/90 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+        <div className="bg-[var(--bg-base)] neu-raised p-6 rounded-3xl">
           <div className="mb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            <h2 className="text-base font-extrabold text-[var(--text-main)]">
               Category Breakdown
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-[var(--text-main)] opacity-70 font-medium">
               Distribution of tasks across categories
             </p>
           </div>
 
           <div className="h-64 w-full flex items-center justify-center">
             {categoryData.length === 0 ? (
-              <p className="text-xs text-slate-400">No categories found</p>
+              <p className="text-xs font-semibold text-[var(--text-main)] opacity-60">No categories found</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -189,7 +193,7 @@ export function AnalyticsCharts({
                     cy="50%"
                     innerRadius={55}
                     outerRadius={85}
-                    paddingAngle={3}
+                    paddingAngle={4}
                     dataKey="count"
                   >
                     {categoryData.map((entry, index) => (
@@ -203,9 +207,9 @@ export function AnalyticsCharts({
                     contentStyle={{
                       backgroundColor: tooltipBg,
                       borderColor: tooltipBorder,
-                      borderRadius: '12px',
+                      borderRadius: '16px',
                       fontSize: '12px',
-                      color: isDark ? '#F8FAFC' : '#0F172A',
+                      color: isDark ? '#E8E8E8' : '#2D3748',
                     }}
                     formatter={(value: any, name: any, item: any) => [
                       `${value} tasks (${item.payload.percentage}%)`,
@@ -225,12 +229,12 @@ export function AnalyticsCharts({
         </div>
 
         {/* Priority Distribution Horizontal Bar Chart */}
-        <div className="bg-white dark:bg-slate-900/90 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+        <div className="bg-[var(--bg-base)] neu-raised p-6 rounded-3xl">
           <div className="mb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            <h2 className="text-base font-extrabold text-[var(--text-main)]">
               Priority Distribution
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-[var(--text-main)] opacity-70 font-medium">
               Task count color-coded by priority level
             </p>
           </div>
@@ -255,13 +259,13 @@ export function AnalyticsCharts({
                   contentStyle={{
                     backgroundColor: tooltipBg,
                     borderColor: tooltipBorder,
-                    borderRadius: '12px',
+                    borderRadius: '16px',
                     fontSize: '12px',
-                    color: isDark ? '#F8FAFC' : '#0F172A',
+                    color: isDark ? '#E8E8E8' : '#2D3748',
                   }}
                   formatter={(value: any) => [`${value} tasks`, 'Count']}
                 />
-                <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                <Bar dataKey="count" radius={[0, 8, 8, 0]}>
                   {priorityData.map((entry, index) => (
                     <Cell key={`cell-priority-${index}`} fill={entry.color} />
                   ))}
