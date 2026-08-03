@@ -303,6 +303,7 @@ export default function DashboardPage() {
 
     return tasks.filter((t) => {
       if (t.is_active === false) return false;
+      if (t.due_date && t.due_date > yesterdayStr) return false;
 
       const createdDateStr = t.created_at ? t.created_at.split('T')[0] : null;
       if (createdDateStr && createdDateStr > yesterdayStr) {
@@ -323,12 +324,19 @@ export default function DashboardPage() {
     }
 
     const completedToday = completions.filter((c) => c.completed_date === todayStr).length;
-    const activeTasksList = tasks.filter((t) => t.is_active !== false);
-    const pending = activeTasksList.filter((t) => !completedTaskIdsToday.has(t.id)).length;
+
+    // Filter active tasks visible on today's dashboard (no due_date OR due_date <= todayStr)
+    const visibleActiveTasks = tasks.filter((t) => {
+      if (t.is_active === false) return false;
+      if (t.due_date && t.due_date > todayStr) return false;
+      return true;
+    });
+
+    const pending = visibleActiveTasks.filter((t) => !completedTaskIdsToday.has(t.id)).length;
     const streak = calculateStreak(completions);
 
     let overdue = 0;
-    activeTasksList.forEach((t) => {
+    visibleActiveTasks.forEach((t) => {
       if (!completedTaskIdsToday.has(t.id) && isOverdue(t.due_date, 'todo')) {
         overdue++;
       }

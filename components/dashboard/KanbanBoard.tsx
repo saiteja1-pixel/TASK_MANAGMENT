@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Task, TaskStatus, TaskPriority, TaskDailyNote } from '@/lib/types/database';
-import { getPriorityColor, isOverdue, formatDueDate } from '@/lib/utils';
+import { getPriorityColor, isOverdue, formatDueDate, getTodayString } from '@/lib/utils';
 import {
   Clock,
   CheckCircle2,
@@ -17,6 +17,7 @@ import {
   MessageSquareText,
   FastForward,
 } from 'lucide-react';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -75,9 +76,11 @@ export function KanbanBoard({
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
 
   // Group tasks by today's status & completion state
   const tasksByStatus = useMemo(() => {
+    const todayStr = getTodayString();
     const map: Record<TaskStatus, Task[]> = {
       todo: [],
       in_progress: [],
@@ -86,6 +89,8 @@ export function KanbanBoard({
 
     tasks.forEach((task) => {
       if (task.is_active === false) return;
+      // Filter out tasks with future due_date until their due date arrives
+      if (task.due_date && task.due_date > todayStr) return;
 
       const isCompletedToday = completedTaskIdsToday
         ? completedTaskIdsToday.has(task.id)
@@ -167,12 +172,16 @@ export function KanbanBoard({
     setTogglingId(null);
   };
 
-  const handleDeleteClick = async (taskId: string) => {
-    if (confirm('Are you sure you want to delete this task?')) {
-      setDeletingId(taskId);
-      await onDelete(taskId);
-      setDeletingId(null);
-    }
+  const handleDeleteClick = (task: Task) => {
+    setTaskToDelete(task);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!taskToDelete) return;
+    setDeletingId(taskToDelete.id);
+    await onDelete(taskToDelete.id);
+    setDeletingId(null);
+    setTaskToDelete(null);
   };
 
   return (
@@ -267,45 +276,49 @@ export function KanbanBoard({
                               <button
                                 type="button"
                                 onClick={() => onOpenReasonModal(task, 'note')}
-                                className={`p-1.5 rounded-xl neu-button neu-focus text-[var(--text-main)] ${
-                                  hasReason ? 'text-[#7C3AED] dark:text-[#8B5CF6]' : ''
+                                className={`p-1.5 rounded-xl neu-button neu-focus transition-all duration-150 !text-[#3B82F6] dark:!text-blue-400 ${
+                                  hasReason
+                                    ? 'bg-blue-500/15 dark:bg-blue-400/20 neu-inset-sm'
+                                    : 'hover:bg-blue-500/10 dark:hover:bg-blue-400/15'
                                 }`}
                                 title={hasReason ? 'Edit daily reason' : 'Add reason for today'}
                               >
                                 {hasReason ? (
-                                  <MessageSquareText className="w-3.5 h-3.5 fill-current" />
+                                  <MessageSquareText className="w-3.5 h-3.5 fill-current text-[#3B82F6] dark:text-blue-400" />
                                 ) : (
-                                  <MessageSquare className="w-3.5 h-3.5" />
+                                  <MessageSquare className="w-3.5 h-3.5 text-[#3B82F6] dark:text-blue-400" />
                                 )}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => onOpenReasonModal(task, 'skip')}
-                                className={`p-1.5 rounded-xl neu-button neu-focus text-[var(--text-main)] ${
-                                  isSkippedToday ? 'text-amber-600 dark:text-amber-400' : ''
+                                className={`p-1.5 rounded-xl neu-button neu-focus transition-all duration-150 !text-[#F59E0B] dark:!text-amber-400 ${
+                                  isSkippedToday
+                                    ? 'bg-amber-500/15 dark:bg-amber-400/20 font-bold neu-inset-sm'
+                                    : 'hover:bg-amber-500/10 dark:hover:bg-amber-400/15'
                                 }`}
                                 title="Skip task today"
                               >
-                                <FastForward className="w-3.5 h-3.5" />
+                                <FastForward className="w-3.5 h-3.5 text-[#F59E0B] dark:text-amber-400" />
                               </button>
                             </>
                           )}
                           <button
                             type="button"
                             onClick={() => onEdit(task)}
-                            className="p-1.5 rounded-xl neu-button neu-focus text-[var(--text-main)] hover:text-[#7C3AED] dark:hover:text-[#8B5CF6]"
+                            className="p-1.5 rounded-xl neu-button neu-focus !text-[#7C3AED] dark:!text-[#8B5CF6] hover:bg-[#7C3AED]/10 dark:hover:bg-[#8B5CF6]/15 transition-all duration-150"
                             title="Edit task"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-3.5 h-3.5 text-[#7C3AED] dark:text-[#8B5CF6]" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDeleteClick(task.id)}
+                            onClick={() => handleDeleteClick(task)}
                             disabled={deletingId === task.id}
-                            className="p-1.5 rounded-xl neu-button neu-focus text-[var(--text-main)] hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+                            className="p-1.5 rounded-xl neu-button neu-focus !text-[#DC2626] dark:!text-red-400 hover:bg-red-500/10 dark:hover:bg-red-400/15 disabled:opacity-50 transition-all duration-150"
                             title="Delete task"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5 text-[#DC2626] dark:text-red-400" />
                           </button>
                         </div>
                       </div>
@@ -410,6 +423,14 @@ export function KanbanBoard({
           </div>
         );
       })}
+
+      <ConfirmationModal
+        isOpen={Boolean(taskToDelete)}
+        onClose={() => setTaskToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        taskTitle={taskToDelete?.title}
+        isLoading={Boolean(deletingId && taskToDelete && deletingId === taskToDelete.id)}
+      />
     </div>
   );
 }

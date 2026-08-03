@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Task, TaskPriority, TaskDailyNote } from '@/lib/types/database';
 import { TaskItem } from './TaskItem';
-import { isOverdue } from '@/lib/utils';
+import { isOverdue, getTodayString } from '@/lib/utils';
 import { Search, AlertTriangle, CheckSquare2, CalendarDays, LogIn } from 'lucide-react';
 
 interface TaskListProps {
@@ -48,9 +48,14 @@ export function TaskList({
     low: 1,
   };
 
-  // Filter tasks (Active tasks only: is_active !== false)
+  // Filter active tasks: is_active !== false AND (no due_date OR due_date <= todayStr)
   const activeTasks = useMemo(() => {
-    return tasks.filter((task) => task.is_active !== false);
+    const todayStr = getTodayString();
+    return tasks.filter((task) => {
+      if (task.is_active === false) return false;
+      if (task.due_date && task.due_date > todayStr) return false;
+      return true;
+    });
   }, [tasks]);
 
   // Apply search, category, and priority filters

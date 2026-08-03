@@ -16,6 +16,8 @@ import {
   FastForward,
 } from 'lucide-react';
 
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+
 interface TaskItemProps {
   task: Task;
   isCompletedToday?: boolean;
@@ -37,6 +39,7 @@ export function TaskItem({
 }: TaskItemProps) {
   const [toggling, setToggling] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const priorityColors = getPriorityColor(task.priority);
   const isDone = isCompletedToday !== undefined ? isCompletedToday : task.status === 'done';
@@ -51,12 +54,15 @@ export function TaskItem({
     setToggling(false);
   };
 
-  const handleDeleteClick = async () => {
-    if (confirm('Are you sure you want to delete this task?')) {
-      setDeleting(true);
-      await onDelete(task.id);
-      setDeleting(false);
-    }
+  const handleDeleteClick = () => {
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    setDeleting(true);
+    await onDelete(task.id);
+    setDeleting(false);
+    setShowDeleteModal(false);
   };
 
   return (
@@ -126,7 +132,7 @@ export function TaskItem({
             {hasReason && onOpenReasonModal && (
               <button
                 onClick={() => onOpenReasonModal(task, 'note')}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl text-[11px] font-semibold neu-inset-sm text-[#7C3AED] dark:text-[#8B5CF6] hover:underline"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-xl text-[11px] font-semibold neu-inset-sm text-blue-600 dark:text-blue-400 hover:underline"
                 title={`Reason: "${dailyNote?.reason}" (Click to edit)`}
               >
                 <MessageSquareText className="w-3 h-3 fill-current shrink-0" />
@@ -187,59 +193,123 @@ export function TaskItem({
           </div>
         </div>
 
-        {/* Quick Action Icons */}
-        <div className="flex items-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        {/* Quick Action Icons — Desktop (hidden on mobile, visible on desktop) */}
+        <div className="hidden sm:flex items-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0">
           {/* Add / Edit Reason Button for pending tasks */}
           {!isDone && onOpenReasonModal && (
             <>
               <button
                 onClick={() => onOpenReasonModal(task, 'note')}
-                className={`p-2 rounded-xl neu-button neu-focus text-[var(--text-main)] ${
+                className={`p-2 rounded-xl neu-button neu-focus transition-all duration-150 !text-[#3B82F6] dark:!text-blue-400 ${
                   hasReason
-                    ? 'text-[#7C3AED] dark:text-[#8B5CF6]'
-                    : 'hover:text-[#7C3AED] dark:hover:text-[#8B5CF6]'
+                    ? 'bg-blue-500/15 dark:bg-blue-400/20 neu-inset-sm'
+                    : 'hover:bg-blue-500/10 dark:hover:bg-blue-400/15'
                 }`}
                 title={hasReason ? 'Edit daily reason' : 'Add reason for today'}
               >
                 {hasReason ? (
-                  <MessageSquareText className="w-4 h-4 fill-current" />
+                  <MessageSquareText className="w-4 h-4 fill-current text-[#3B82F6] dark:text-blue-400" />
                 ) : (
-                  <MessageSquare className="w-4 h-4" />
+                  <MessageSquare className="w-4 h-4 text-[#3B82F6] dark:text-blue-400" />
                 )}
               </button>
 
               {/* Skip Today Button */}
               <button
                 onClick={() => onOpenReasonModal(task, 'skip')}
-                className={`p-2 rounded-xl neu-button neu-focus text-[var(--text-main)] ${
+                className={`p-2 rounded-xl neu-button neu-focus transition-all duration-150 !text-[#F59E0B] dark:!text-amber-400 ${
                   isSkippedToday
-                    ? 'text-amber-600 dark:text-amber-400 font-bold'
-                    : 'hover:text-amber-600 dark:hover:text-amber-400'
+                    ? 'bg-amber-500/15 dark:bg-amber-400/20 font-bold neu-inset-sm'
+                    : 'hover:bg-amber-500/10 dark:hover:bg-amber-400/15'
                 }`}
                 title="Skip task today (requires reason)"
               >
-                <FastForward className="w-4 h-4" />
+                <FastForward className="w-4 h-4 text-[#F59E0B] dark:text-amber-400" />
               </button>
             </>
           )}
 
           <button
             onClick={() => onEdit(task)}
-            className="p-2 rounded-xl neu-button neu-focus text-[var(--text-main)] hover:text-[#7C3AED] dark:hover:text-[#8B5CF6]"
+            className="p-2 rounded-xl neu-button neu-focus !text-[#7C3AED] dark:!text-[#8B5CF6] hover:bg-[#7C3AED]/10 dark:hover:bg-[#8B5CF6]/15 transition-all duration-150"
             title="Edit task"
           >
-            <Edit2 className="w-4 h-4" />
+            <Edit2 className="w-4 h-4 text-[#7C3AED] dark:text-[#8B5CF6]" />
           </button>
           <button
             onClick={handleDeleteClick}
             disabled={deleting}
-            className="p-2 rounded-xl neu-button neu-focus text-[var(--text-main)] hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50"
+            className="p-2 rounded-xl neu-button neu-focus !text-[#DC2626] dark:!text-red-400 hover:bg-red-500/10 dark:hover:bg-red-400/15 disabled:opacity-50 transition-all duration-150"
             title="Delete task"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4 text-[#DC2626] dark:text-red-400" />
           </button>
         </div>
       </div>
+
+      {/* Quick Action Bar — Mobile Viewports (always visible on mobile below card content) */}
+      <div className="flex sm:hidden items-center justify-between border-t border-[var(--shadow-dark)]/20 pt-3 mt-3 gap-2">
+        {!isDone && onOpenReasonModal && (
+          <>
+            <button
+              type="button"
+              onClick={() => onOpenReasonModal(task, 'note')}
+              className={`flex-1 min-h-[44px] rounded-xl neu-button neu-focus flex items-center justify-center gap-1.5 text-xs font-bold transition-all duration-150 !text-[#3B82F6] dark:!text-blue-400 ${
+                hasReason
+                  ? 'bg-blue-500/15 dark:bg-blue-400/20 neu-inset-sm'
+                  : 'hover:bg-blue-500/10 dark:hover:bg-blue-400/15'
+              }`}
+              title={hasReason ? 'Edit daily reason' : 'Add reason for today'}
+            >
+              {hasReason ? (
+                <MessageSquareText className="w-4 h-4 fill-current text-[#3B82F6] dark:text-blue-400 shrink-0" />
+              ) : (
+                <MessageSquare className="w-4 h-4 text-[#3B82F6] dark:text-blue-400 shrink-0" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onOpenReasonModal(task, 'skip')}
+              className={`flex-1 min-h-[44px] rounded-xl neu-button neu-focus flex items-center justify-center gap-1.5 text-xs font-bold transition-all duration-150 !text-[#F59E0B] dark:!text-amber-400 ${
+                isSkippedToday
+                  ? 'bg-amber-500/15 dark:bg-amber-400/20 font-bold neu-inset-sm'
+                  : 'hover:bg-amber-500/10 dark:hover:bg-amber-400/15'
+              }`}
+              title="Skip task today (requires reason)"
+            >
+              <FastForward className="w-4 h-4 text-[#F59E0B] dark:text-amber-400 shrink-0" />
+            </button>
+          </>
+        )}
+
+        <button
+          type="button"
+          onClick={() => onEdit(task)}
+          className="flex-1 min-h-[44px] rounded-xl neu-button neu-focus flex items-center justify-center gap-1.5 text-xs font-bold !text-[#7C3AED] dark:!text-[#8B5CF6] hover:bg-[#7C3AED]/10 dark:hover:bg-[#8B5CF6]/15 transition-all duration-150"
+          title="Edit task"
+        >
+          <Edit2 className="w-4 h-4 text-[#7C3AED] dark:text-[#8B5CF6] shrink-0" />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleDeleteClick}
+          disabled={deleting}
+          className="flex-1 min-h-[44px] rounded-xl neu-button neu-focus flex items-center justify-center gap-1.5 text-xs font-bold !text-[#DC2626] dark:!text-red-400 hover:bg-red-500/10 dark:hover:bg-red-400/15 disabled:opacity-50 transition-all duration-150"
+          title="Delete task"
+        >
+          <Trash2 className="w-4 h-4 text-[#DC2626] dark:text-red-400 shrink-0" />
+        </button>
+      </div>
+
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+        taskTitle={task.title}
+        isLoading={deleting}
+      />
     </div>
   );
 }

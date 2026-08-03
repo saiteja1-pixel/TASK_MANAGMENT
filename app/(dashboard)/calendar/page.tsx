@@ -284,6 +284,29 @@ export default function CalendarPage() {
     return map;
   }, [completions]);
 
+  // Map of all completion date strings per task_id
+  const completionDatesByTaskId = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    completions.forEach((c) => {
+      if (!map.has(c.task_id)) {
+        map.set(c.task_id, new Set());
+      }
+      map.get(c.task_id)!.add(c.completed_date);
+    });
+    tasks.forEach((t) => {
+      if (t.status === 'done' && t.completed_at) {
+        const dStr = toLocalDateString(t.completed_at);
+        if (dStr) {
+          if (!map.has(t.id)) {
+            map.set(t.id, new Set());
+          }
+          map.get(t.id)!.add(dStr);
+        }
+      }
+    });
+    return map;
+  }, [completions, tasks]);
+
   // Map of daily notes key: `${note_date}_${task_id}` -> TaskDailyNote
   const dailyNotesMap = useMemo(() => {
     const map = new Map<string, TaskDailyNote>();
@@ -293,7 +316,7 @@ export default function CalendarPage() {
     return map;
   }, [dailyNotes]);
 
-  // Daily Snapshot calculation using task_completions table
+  // Daily Snapshot calculation using task_completions table and due_date logic
   const getSnapshotForDate = useCallback(
     (targetDateStr: string) => {
       const completedTaskIds = completionsByDate[targetDateStr] || new Set();
@@ -303,18 +326,45 @@ export default function CalendarPage() {
       tasks.forEach((t) => {
         if (t.is_active === false) return;
 
+        // 1) If task was completed on THIS exact date
+        const isCompletedOnThisDate = completedTaskIds.has(t.id);
+        if (isCompletedOnThisDate) {
+          completedOnDate.push(t);
+          return;
+        }
+
+        // 2) Check if task was completed on any date prior to targetDateStr
+        const compDates = completionDatesByTaskId.get(t.id);
+        if (compDates) {
+          let completedPrior = false;
+          for (const dStr of compDates) {
+            if (dStr < targetDateStr) {
+              completedPrior = true;
+              break;
+            }
+          }
+          if (completedPrior) return;
+        }
+
+        // 3) Pending classification for targetDateStr
         const createdDateStr = toLocalDateString(t.created_at);
 
-        if (completedTaskIds.has(t.id)) {
-          completedOnDate.push(t);
-        } else if (createdDateStr && createdDateStr <= targetDateStr) {
-          pendingAsOfDate.push(t);
+        if (t.due_date) {
+          // Tasks WITH a due_date: ONLY show on the calendar day matching its due_date
+          if (t.due_date === targetDateStr) {
+            pendingAsOfDate.push(t);
+          }
+        } else {
+          // Tasks WITHOUT a due_date: Show on every day from creation date onward until completed
+          if (createdDateStr && createdDateStr <= targetDateStr) {
+            pendingAsOfDate.push(t);
+          }
         }
       });
 
       return { completedOnDate, pendingAsOfDate };
     },
-    [tasks, completionsByDate]
+    [tasks, completionsByDate, completionDatesByTaskId]
   );
 
   // Modal daily snapshot data
@@ -593,25 +643,32 @@ export default function CalendarPage() {
             const { completedOnDate, pendingAsOfDate } = getSnapshotForDate(dayCell.dateStr);
             const hasCompleted = completedOnDate.length > 0;
             const hasPending = pendingAsOfDate.length > 0;
+            const hasOverdue = pendingAsOfDate.some(
+              (t) => t.due_date && t.due_date < realTodayStr
+            );
 
             return (
               <div
                 key={`${dayCell.dateStr}-${idx}`}
                 onClick={() => handleDayClick(dayCell.dateStr)}
-                className={`min-h-[110px] p-2.5 rounded-2xl transition-all duration-200 cursor-pointer flex flex-col justify-between group ${dayCell.isToday
+                className={`min-h-[110px] p-2.5 rounded-2xl transition-all duration-200 cursor-pointer flex flex-col justify-between group ${
+                  dayCell.isToday
                     ? 'neu-inset border-2 border-[#7C3AED] dark:border-[#8B5CF6]'
+                    : hasOverdue
+                    ? 'neu-raised hover:neu-raised-lg border-2 border-red-500/40 bg-red-500/5'
                     : dayCell.isCurrentMonth
-                      ? 'neu-raised hover:neu-raised-lg'
-                      : 'neu-inset-sm opacity-40'
-                  }`}
+                    ? 'neu-raised hover:neu-raised-lg'
+                    : 'neu-inset-sm opacity-40'
+                }`}
               >
                 {/* Cell Header */}
                 <div className="flex items-center justify-between">
                   <span
-                    className={`text-xs font-extrabold ${dayCell.isToday
+                    className={`text-xs font-extrabold ${
+                      dayCell.isToday
                         ? 'text-[#7C3AED] dark:text-[#8B5CF6] text-sm'
                         : 'text-[var(--text-main)]'
-                      }`}
+                    }`}
                   >
                     {dayCell.dayNumber}
                   </span>
@@ -635,8 +692,18 @@ export default function CalendarPage() {
                   )}
 
                   {hasPending && (
-                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-[var(--text-main)] opacity-80 neu-inset-sm">
-                      <Clock className="w-3 h-3 text-[#7C3AED] dark:text-[#8B5CF6] shrink-0" />
+                    <div
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold neu-inset-sm ${
+                        hasOverdue
+                          ? 'text-red-600 dark:text-red-400 bg-red-500/10 font-extrabold border-l-2 border-red-500'
+                          : 'text-[var(--text-main)] opacity-80'
+                      }`}
+                    >
+                      {hasOverdue ? (
+                        <AlertCircle className="w-3 h-3 text-red-500 shrink-0 animate-pulse" />
+                      ) : (
+                        <Clock className="w-3 h-3 text-[#7C3AED] dark:text-[#8B5CF6] shrink-0" />
+                      )}
                       <span className="truncate">{pendingAsOfDate.length} pending</span>
                     </div>
                   )}
@@ -667,6 +734,9 @@ export default function CalendarPage() {
         ) : (
           mobileMonthDays.map((dayItem) => {
             const { completedOnDate, pendingAsOfDate } = dayItem.snapshot;
+            const hasOverdue = pendingAsOfDate.some(
+              (t) => t.due_date && t.due_date < realTodayStr
+            );
 
             return (
               <div
@@ -675,6 +745,8 @@ export default function CalendarPage() {
                 className={`p-4 rounded-2xl bg-[var(--bg-base)] transition-all duration-150 cursor-pointer space-y-2 min-h-[52px] neu-focus ${
                   dayItem.isToday
                     ? 'neu-inset border-2 border-[#7C3AED] dark:border-[#8B5CF6]'
+                    : hasOverdue
+                    ? 'neu-raised border-2 border-red-500/40 bg-red-500/5'
                     : 'neu-raised hover:neu-raised-lg active:neu-inset'
                 }`}
               >
@@ -697,8 +769,18 @@ export default function CalendarPage() {
                       </span>
                     )}
                     {pendingAsOfDate.length > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-[var(--text-main)] opacity-80 neu-inset-sm">
-                        <Clock className="w-3 h-3 text-[#7C3AED] dark:text-[#8B5CF6]" />
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold neu-inset-sm ${
+                          hasOverdue
+                            ? 'text-red-600 dark:text-red-400 bg-red-500/10 font-extrabold'
+                            : 'text-[var(--text-main)] opacity-80'
+                        }`}
+                      >
+                        {hasOverdue ? (
+                          <AlertCircle className="w-3 h-3 text-red-500" />
+                        ) : (
+                          <Clock className="w-3 h-3 text-[#7C3AED] dark:text-[#8B5CF6]" />
+                        )}
                         {pendingAsOfDate.length} pending
                       </span>
                     )}
@@ -836,11 +918,14 @@ export default function CalendarPage() {
                           const ageText = getTaskAgeText(t.created_at, selectedDateStr);
                           const note = dailyNotesMap.get(`${selectedDateStr}_${t.id}`);
                           const hasReason = Boolean(note?.reason && note.reason.trim() !== '');
+                          const isTaskOverdue = Boolean(t.due_date && t.due_date < realTodayStr);
 
                           return (
                             <div
                               key={t.id}
-                              className="p-3.5 rounded-2xl bg-[var(--bg-base)] neu-raised flex items-start justify-between gap-3"
+                              className={`p-3.5 rounded-2xl bg-[var(--bg-base)] neu-raised flex items-start justify-between gap-3 ${
+                                isTaskOverdue ? 'border-l-4 border-red-500' : ''
+                              }`}
                             >
                               <div className="flex items-start gap-2.5 flex-1 min-w-0">
                                 <button
@@ -870,6 +955,12 @@ export default function CalendarPage() {
                                     >
                                       {t.title}
                                     </h4>
+
+                                    {isTaskOverdue && (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-[10px] font-extrabold bg-red-600 text-white neu-raised-sm">
+                                        <AlertCircle className="w-3 h-3 animate-pulse" /> Overdue
+                                      </span>
+                                    )}
 
                                     {note?.is_skipped && (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300 neu-inset-sm">
