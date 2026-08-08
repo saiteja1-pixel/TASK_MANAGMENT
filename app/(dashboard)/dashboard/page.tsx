@@ -97,6 +97,23 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
 
+  // Load persistent view mode from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedView = localStorage.getItem('taskflow_dashboard_view') as ViewMode | null;
+      if (savedView === 'list' || savedView === 'kanban') {
+        setViewMode(savedView);
+      }
+    }
+  }, []);
+
+  const handleViewChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('taskflow_dashboard_view', mode);
+    }
+  };
+
   // Edit task modal state
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
