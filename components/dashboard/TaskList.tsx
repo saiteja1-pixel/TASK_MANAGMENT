@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Task, TaskPriority, TaskDailyNote } from '@/lib/types/database';
 import { TaskItem } from './TaskItem';
-import { isOverdue, getTodayString } from '@/lib/utils';
+import { isOverdue, getTodayString, toLocalDateString } from '@/lib/utils';
 import { Search, AlertTriangle, CheckSquare2, CalendarDays, LogIn } from 'lucide-react';
 
 interface TaskListProps {
@@ -20,9 +20,9 @@ interface TaskListProps {
 
 export function TaskList({
   tasks,
-  completedTaskIdsToday,
-  dailyNotesMap,
-  isAuthenticated = true,
+  completedTaskIdsToday = new Set(),
+  dailyNotesMap = new Map(),
+  isAuthenticated = false,
   onToggleComplete,
   onOpenReasonModal,
   onEdit,
@@ -32,11 +32,13 @@ export function TaskList({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
 
-  // Extract unique categories for filtering
+  // Extract unique categories from tasks
   const categories = useMemo(() => {
     const set = new Set<string>();
-    tasks.forEach((t) => {
-      if (t.category) set.add(t.category);
+    tasks.forEach((task) => {
+      if (task.category && task.category.trim() !== '') {
+        set.add(task.category);
+      }
     });
     return Array.from(set);
   }, [tasks]);
@@ -48,12 +50,15 @@ export function TaskList({
     low: 1,
   };
 
-  // Filter active tasks: is_active !== false AND (no due_date OR due_date <= todayStr)
+  // Filter active tasks: is_active !== false AND (no due_date OR due_date === todayStr)
   const activeTasks = useMemo(() => {
     const todayStr = getTodayString();
     return tasks.filter((task) => {
       if (task.is_active === false) return false;
-      if (task.due_date && task.due_date > todayStr) return false;
+      if (task.due_date) {
+        const taskDueDate = toLocalDateString(task.due_date);
+        if (taskDueDate !== todayStr) return false;
+      }
       return true;
     });
   }, [tasks]);

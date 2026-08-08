@@ -6,7 +6,42 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function getTodayString(): string {
+export function toLocalDateString(dateInput?: string | Date | null): string | null {
+  if (!dateInput) return null;
+
+  if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    if (!trimmed) return null;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match && !trimmed.includes('T') && !trimmed.includes(':')) {
+      return `${match[1]}-${match[2]}-${match[3]}`;
+    }
+
+    const d = new Date(trimmed);
+    if (isNaN(d.getTime())) return null;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  if (dateInput instanceof Date) {
+    if (isNaN(dateInput.getTime())) return null;
+    const year = dateInput.getFullYear();
+    const month = String(dateInput.getMonth() + 1).padStart(2, '0');
+    const day = String(dateInput.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return null;
+}
+
+export function getTodayDateStr(): string {
   const d = new Date();
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -14,9 +49,13 @@ export function getTodayString(): string {
   return `${year}-${month}-${day}`;
 }
 
+export function getTodayString(): string {
+  return getTodayDateStr();
+}
+
 export function isOverdue(dueDate: string | null, status: TaskStatus): boolean {
   if (!dueDate || status === 'done') return false;
-  const today = getTodayString();
+  const today = getTodayDateStr();
   return dueDate < today;
 }
 

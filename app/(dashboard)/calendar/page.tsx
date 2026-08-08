@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Task, TaskUpdateInput, TaskCompletion, TaskDailyNote } from '@/lib/types/database';
 import { EditTaskModal } from '@/components/dashboard/EditTaskModal';
 import { ReasonModal } from '@/components/dashboard/ReasonModal';
-import { getPriorityColor } from '@/lib/utils';
+import { getPriorityColor, toLocalDateString, getTodayDateStr } from '@/lib/utils';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -32,17 +32,6 @@ const formatDateStr = (year: number, month: number, day: number): string => {
   const m = (month + 1).toString().padStart(2, '0');
   const d = day.toString().padStart(2, '0');
   return `${y}-${m}-${d}`;
-};
-
-// Helper to convert ISO timestamp to local YYYY-MM-DD date string
-const toLocalDateString = (isoString?: string | null): string | null => {
-  if (!isoString) return null;
-  const d = new Date(isoString);
-  if (isNaN(d.getTime())) return null;
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 };
 
 // Helper for formatted display date e.g. "August 1, 2026"
@@ -218,8 +207,7 @@ export default function CalendarPage() {
     const startDayOfWeek = firstDayOfMonth.getDay();
     const daysInMonth = lastDayOfMonth.getDate();
 
-    const now = new Date();
-    const todayStr = formatDateStr(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStr = getTodayDateStr();
 
     const days = [];
 
@@ -276,10 +264,13 @@ export default function CalendarPage() {
   const completionsByDate = useMemo(() => {
     const map: Record<string, Set<string>> = {};
     completions.forEach((c) => {
-      if (!map[c.completed_date]) {
-        map[c.completed_date] = new Set();
+      const dateStr = toLocalDateString(c.completed_date);
+      if (dateStr) {
+        if (!map[dateStr]) {
+          map[dateStr] = new Set();
+        }
+        map[dateStr].add(c.task_id);
       }
-      map[c.completed_date].add(c.task_id);
     });
     return map;
   }, [completions]);
@@ -288,10 +279,13 @@ export default function CalendarPage() {
   const completionDatesByTaskId = useMemo(() => {
     const map = new Map<string, Set<string>>();
     completions.forEach((c) => {
-      if (!map.has(c.task_id)) {
-        map.set(c.task_id, new Set());
+      const dateStr = toLocalDateString(c.completed_date);
+      if (dateStr) {
+        if (!map.has(c.task_id)) {
+          map.set(c.task_id, new Set());
+        }
+        map.get(c.task_id)!.add(dateStr);
       }
-      map.get(c.task_id)!.add(c.completed_date);
     });
     tasks.forEach((t) => {
       if (t.status === 'done' && t.completed_at) {
@@ -311,7 +305,10 @@ export default function CalendarPage() {
   const dailyNotesMap = useMemo(() => {
     const map = new Map<string, TaskDailyNote>();
     dailyNotes.forEach((n) => {
-      map.set(`${n.note_date}_${n.task_id}`, n);
+      const dateStr = toLocalDateString(n.note_date);
+      if (dateStr) {
+        map.set(`${dateStr}_${n.task_id}`, n);
+      }
     });
     return map;
   }, [dailyNotes]);
@@ -319,13 +316,14 @@ export default function CalendarPage() {
   // Daily Snapshot calculation using task_completions table and due_date logic
   const getSnapshotForDate = useCallback(
     (targetDateStr: string) => {
-      const completedTaskIds = completionsByDate[targetDateStr] || new Set();
+      const normalizedTargetDateStr = toLocalDateString(targetDateStr) || targetDateStr;
+      const completedTaskIds = completionsByDate[normalizedTargetDateStr] || new Set();
       const completedOnDate: Task[] = [];
       const pendingAsOfDate: Task[] = [];
 
-      tasks.forEach((t) => {
-        if (t.is_active === false) return;
+      const currentRealTodayStr = getTodayDateStr();
 
+      tasks.forEach((t) => {
         // 1) If task was completed on THIS exact date
         const isCompletedOnThisDate = completedTaskIds.has(t.id);
         if (isCompletedOnThisDate) {
@@ -333,30 +331,28 @@ export default function CalendarPage() {
           return;
         }
 
-        // 2) Check if task was completed on any date prior to targetDateStr
-        const compDates = completionDatesByTaskId.get(t.id);
-        if (compDates) {
-          let completedPrior = false;
-          for (const dStr of compDates) {
-            if (dStr < targetDateStr) {
-              completedPrior = true;
-              break;
-            }
-          }
-          if (completedPrior) return;
+        // Deletion rule for uncompleted tasks:
+        // Soft-deleted tasks (is_active === false) disappear from today and future days
+        if (t.is_active === false && normalizedTargetDateStr >= currentRealTodayStr) {
+          return;
         }
 
-        // 3) Pending classification for targetDateStr
         const createdDateStr = toLocalDateString(t.created_at);
+        const taskDueDate = toLocalDateString(t.due_date);
 
-        if (t.due_date) {
-          // Tasks WITH a due_date: ONLY show on the calendar day matching its due_date
-          if (t.due_date === targetDateStr) {
-            pendingAsOfDate.push(t);
+        if (taskDueDate) {
+          // Tasks WITH a due_date:
+          // SHOW ONLY on the exact day matching its due_date (taskDueDate === normalizedTargetDateStr)
+          // Hide before its due_date arrives and hide after its due_date has passed
+          if (taskDueDate === normalizedTargetDateStr) {
+            if (!createdDateStr || createdDateStr <= normalizedTargetDateStr) {
+              pendingAsOfDate.push(t);
+            }
           }
         } else {
-          // Tasks WITHOUT a due_date: Show on every day from creation date onward until completed
-          if (createdDateStr && createdDateStr <= targetDateStr) {
+          // Tasks WITHOUT a due_date (daily recurring checklist items):
+          // Show on EVERY calendar day from creation date onward as pending (unless completed on THAT specific day)
+          if (createdDateStr && createdDateStr <= normalizedTargetDateStr) {
             pendingAsOfDate.push(t);
           }
         }
@@ -388,10 +384,7 @@ export default function CalendarPage() {
   }, [calendarDays, currentYear, currentMonth, getSnapshotForDate]);
 
   // Real system date YYYY-MM-DD
-  const realTodayStr = useMemo(() => {
-    const now = new Date();
-    return formatDateStr(now.getFullYear(), now.getMonth(), now.getDate());
-  }, []);
+  const realTodayStr = useMemo(() => getTodayDateStr(), []);
 
   const isSelectedDateToday = selectedDateStr === realTodayStr;
   const isSelectedDatePast = selectedDateStr ? selectedDateStr < realTodayStr : false;
@@ -643,9 +636,10 @@ export default function CalendarPage() {
             const { completedOnDate, pendingAsOfDate } = getSnapshotForDate(dayCell.dateStr);
             const hasCompleted = completedOnDate.length > 0;
             const hasPending = pendingAsOfDate.length > 0;
-            const hasOverdue = pendingAsOfDate.some(
-              (t) => t.due_date && t.due_date < realTodayStr
-            );
+            const hasOverdue = pendingAsOfDate.some((t) => {
+              const taskDueDate = toLocalDateString(t.due_date);
+              return Boolean(taskDueDate && taskDueDate < realTodayStr);
+            });
 
             return (
               <div
@@ -734,9 +728,10 @@ export default function CalendarPage() {
         ) : (
           mobileMonthDays.map((dayItem) => {
             const { completedOnDate, pendingAsOfDate } = dayItem.snapshot;
-            const hasOverdue = pendingAsOfDate.some(
-              (t) => t.due_date && t.due_date < realTodayStr
-            );
+            const hasOverdue = pendingAsOfDate.some((t) => {
+              const taskDueDate = toLocalDateString(t.due_date);
+              return Boolean(taskDueDate && taskDueDate < realTodayStr);
+            });
 
             return (
               <div
@@ -918,7 +913,8 @@ export default function CalendarPage() {
                           const ageText = getTaskAgeText(t.created_at, selectedDateStr);
                           const note = dailyNotesMap.get(`${selectedDateStr}_${t.id}`);
                           const hasReason = Boolean(note?.reason && note.reason.trim() !== '');
-                          const isTaskOverdue = Boolean(t.due_date && t.due_date < realTodayStr);
+                          const taskDueDate = toLocalDateString(t.due_date);
+                          const isTaskOverdue = Boolean(taskDueDate && taskDueDate < realTodayStr);
 
                           return (
                             <div

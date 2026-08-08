@@ -25,7 +25,7 @@ import { EditTaskModal } from '@/components/dashboard/EditTaskModal';
 import { ReasonModal } from '@/components/dashboard/ReasonModal';
 import { MissedTasksBanner } from '@/components/dashboard/MissedTasksBanner';
 import { MissedTasksModal } from '@/components/dashboard/MissedTasksModal';
-import { isOverdue } from '@/lib/utils';
+import { isOverdue, toLocalDateString } from '@/lib/utils';
 import { RefreshCw, AlertCircle, List, Kanban } from 'lucide-react';
 
 type ViewMode = 'list' | 'kanban';
@@ -90,71 +90,31 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [completions, setCompletions] = useState<TaskCompletion[]>([]);
   const [dailyNotes, setDailyNotes] = useState<TaskDailyNote[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
 
-  // Edit Modal State
+  // Edit task modal state
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Reason Modal State
+  // Reason modal state
   const [reasonTask, setReasonTask] = useState<Task | null>(null);
   const [reasonMode, setReasonMode] = useState<'note' | 'skip'>('note');
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
 
-  // Missed Tasks Reminder State
+  // Missed tasks state
   const [dismissedMissedBanner, setDismissedMissedBanner] = useState(false);
   const [isMissedModalOpen, setIsMissedModalOpen] = useState(false);
 
-  // Dates
+  // Today's date string YYYY-MM-DD
   const todayStr = useMemo(() => getTodayDateStr(), []);
   const yesterdayStr = useMemo(() => getYesterdayDateStr(), []);
 
-  // User Profile State
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-
-  // Load persistent view mode from localStorage and user profile
-  useEffect(() => {
-    const savedView = localStorage.getItem('taskflow_dashboard_view') as ViewMode | null;
-    if (savedView === 'list' || savedView === 'kanban') {
-      setViewMode(savedView);
-    }
-
-    const localProfile = getLocalUserProfile();
-    if (localProfile) setUserProfile(localProfile);
-
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) {
-        supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', data.user.id)
-          .maybeSingle()
-          .then(({ data: profileData }) => {
-            if (profileData) setUserProfile(profileData as UserProfile);
-          });
-      }
-    });
-
-    const handleProfileUpdated = () => {
-      const updated = getLocalUserProfile();
-      if (updated) setUserProfile(updated);
-    };
-
-    window.addEventListener('taskflow_profile_updated', handleProfileUpdated);
-    return () => window.removeEventListener('taskflow_profile_updated', handleProfileUpdated);
-  }, []);
-
-  const handleViewChange = (mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem('taskflow_dashboard_view', mode);
-  };
-
-  // Fetch tasks, completions, daily notes, and user settings
+  // Fetch tasks, completions, and daily notes
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -166,91 +126,64 @@ export default function DashboardPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        // Logged-out preview mode: Skip Supabase data queries
         setIsAuthenticated(false);
+        const localProfile = getLocalUserProfile();
+        setUserProfile(localProfile);
         setTasks([]);
         setCompletions([]);
         setDailyNotes([]);
-        setUserSettings(null);
         setLoading(false);
         return;
       }
 
       setIsAuthenticated(true);
 
-      // Fetch active tasks for logged-in user
-      const { data: tasksData, error: tasksErr } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      const [tasksRes, completionsRes, notesRes, settingsRes, profileRes] = await Promise.all([
+        supabase.from('tasks').select('*').order('created_at', { ascending: false }),
+        supabase.from('task_completions').select('*'),
+        supabase.from('task_daily_notes').select('*'),
+        supabase.from('user_settings').select('*').single(),
+        supabase.from('user_profiles').select('*').single(),
+      ]);
 
-      console.log('[Dashboard Diagnostics] Logged in User ID:', user.id);
+      if (tasksRes.error) throw tasksRes.error;
 
-      // Read local storage completions for current user only
-      const rawLocalRaw = typeof window !== 'undefined' ? localStorage.getItem('taskflow_local_completions') : null;
-      const localComps = getLocalCompletions(user.id);
-      console.log('[Dashboard Diagnostics] Raw localStorage taskflow_local_completions:', rawLocalRaw);
-      console.log('[Dashboard Diagnostics] Filtered localComps for current user:', localComps);
-
-      // Fetch completions from Supabase scoped to user_id
-      const { data: completionsData, error: completionsErr } = await supabase
-        .from('task_completions')
-        .select('*')
-        .eq('user_id', user.id);
-
-      console.log('[Dashboard Diagnostics] Supabase completionsData:', completionsData, 'Error:', completionsErr);
-
+      const localComps = getLocalCompletions();
       let combinedCompletions = [...localComps];
-
-      if (!completionsErr && completionsData) {
+      if (!completionsRes.error && completionsRes.data) {
         const map = new Map<string, TaskCompletion>();
         localComps.forEach((c) => map.set(`${c.task_id}_${c.completed_date}`, c));
-        (completionsData as TaskCompletion[]).forEach((c) =>
+        (completionsRes.data as TaskCompletion[]).forEach((c) =>
           map.set(`${c.task_id}_${c.completed_date}`, c)
         );
         combinedCompletions = Array.from(map.values());
       }
 
-      console.log('[Dashboard Diagnostics] Final combinedCompletions:', combinedCompletions);
-
-      // Read local storage daily notes for current user only
-      const localNotes = getLocalDailyNotes(user.id);
-
-      // Fetch task daily notes from Supabase scoped to user_id
-      const { data: notesData, error: notesErr } = await supabase
-        .from('task_daily_notes')
-        .select('*')
-        .eq('user_id', user.id);
-
+      const localNotes = getLocalDailyNotes();
       let combinedNotes = [...localNotes];
-
-      if (!notesErr && notesData) {
+      if (!notesRes.error && notesRes.data) {
         const map = new Map<string, TaskDailyNote>();
         localNotes.forEach((n) => map.set(`${n.task_id}_${n.note_date}`, n));
-        (notesData as TaskDailyNote[]).forEach((n) =>
+        (notesRes.data as TaskDailyNote[]).forEach((n) =>
           map.set(`${n.task_id}_${n.note_date}`, n)
         );
         combinedNotes = Array.from(map.values());
       }
 
-      // Fetch user settings (.maybeSingle to prevent 406 error if row doesn't exist yet)
-      const { data: settingsData } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (settingsData) {
-        setUserSettings(settingsData as UserSettings);
-      }
-
-      setTasks((tasksData as Task[]) || []);
+      setTasks((tasksRes.data as Task[]) || []);
       setCompletions(combinedCompletions);
       setDailyNotes(combinedNotes);
+      if (settingsRes.data) setUserSettings(settingsRes.data as UserSettings);
+
+      if (profileRes.data) {
+        setUserProfile(profileRes.data as UserProfile);
+      } else {
+        const localProfile = getLocalUserProfile();
+        setUserProfile(localProfile);
+      }
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err);
-      setError(err?.message || 'Failed to load tasks from Supabase.');
+      setError(err?.message || 'Failed to load dashboard data.');
     } finally {
       setLoading(false);
     }
@@ -282,40 +215,43 @@ export default function DashboardPage() {
     return map;
   }, [dailyNotes, todayStr]);
 
-  // Filter tasks that were missed yesterday (created <= yesterday, not completed yesterday, no daily note for yesterday)
-  const yesterdayMissedTasks = useMemo(() => {
-    if (!isAuthenticated) return [];
-    if (userSettings && userSettings.notify_overdue === false) return [];
-
-    const completedYesterdaySet = new Set<string>();
+  // Set of task IDs completed YESTERDAY
+  const completedTaskIdsYesterday = useMemo(() => {
+    const set = new Set<string>();
     completions.forEach((c) => {
       if (c.completed_date === yesterdayStr) {
-        completedYesterdaySet.add(c.task_id);
+        set.add(c.task_id);
       }
     });
+    return set;
+  }, [completions, yesterdayStr]);
 
-    const notesYesterdaySet = new Set<string>();
+  // Daily notes map for YESTERDAY: taskId -> TaskDailyNote
+  const dailyNotesMapYesterday = useMemo(() => {
+    const map = new Map<string, TaskDailyNote>();
     dailyNotes.forEach((n) => {
       if (n.note_date === yesterdayStr) {
-        notesYesterdaySet.add(n.task_id);
+        map.set(n.task_id, n);
       }
     });
+    return map;
+  }, [dailyNotes, yesterdayStr]);
 
+  // Uncompleted & un-noted tasks from YESTERDAY that need reasons logged
+  const yesterdayMissedTasks = useMemo(() => {
     return tasks.filter((t) => {
       if (t.is_active === false) return false;
-      if (t.due_date && t.due_date > yesterdayStr) return false;
-
-      const createdDateStr = t.created_at ? t.created_at.split('T')[0] : null;
-      if (createdDateStr && createdDateStr > yesterdayStr) {
-        return false;
-      }
-
-      const isCompletedYesterday = completedYesterdaySet.has(t.id);
-      const hasNoteYesterday = notesYesterdaySet.has(t.id);
-
-      return !isCompletedYesterday && !hasNoteYesterday;
+      const createdDateStr = toLocalDateString(t.created_at);
+      if (createdDateStr && createdDateStr > yesterdayStr) return false;
+      const taskDueDate = toLocalDateString(t.due_date);
+      if (taskDueDate && taskDueDate !== yesterdayStr) return false;
+      const isCompleted = completedTaskIdsYesterday.has(t.id);
+      if (isCompleted) return false;
+      const hasNote = dailyNotesMapYesterday.has(t.id);
+      if (hasNote) return false;
+      return true;
     });
-  }, [isAuthenticated, tasks, completions, dailyNotes, yesterdayStr, userSettings]);
+  }, [tasks, yesterdayStr, completedTaskIdsYesterday, dailyNotesMapYesterday]);
 
   // Compute Dashboard Stats
   const stats: DashboardStats = useMemo(() => {
@@ -325,22 +261,19 @@ export default function DashboardPage() {
 
     const completedToday = completions.filter((c) => c.completed_date === todayStr).length;
 
-    // Filter active tasks visible on today's dashboard (no due_date OR due_date <= todayStr)
+    // Filter active tasks visible on today's dashboard (no due_date OR due_date === todayStr)
     const visibleActiveTasks = tasks.filter((t) => {
       if (t.is_active === false) return false;
-      if (t.due_date && t.due_date > todayStr) return false;
+      if (t.due_date) {
+        const taskDueDate = toLocalDateString(t.due_date);
+        if (taskDueDate !== todayStr) return false;
+      }
       return true;
     });
 
     const pending = visibleActiveTasks.filter((t) => !completedTaskIdsToday.has(t.id)).length;
     const streak = calculateStreak(completions);
-
-    let overdue = 0;
-    visibleActiveTasks.forEach((t) => {
-      if (!completedTaskIdsToday.has(t.id) && isOverdue(t.due_date, 'todo')) {
-        overdue++;
-      }
-    });
+    const overdue = 0;
 
     return { completedToday, pending, overdue, streak };
   }, [isAuthenticated, tasks, completions, todayStr, completedTaskIdsToday]);
